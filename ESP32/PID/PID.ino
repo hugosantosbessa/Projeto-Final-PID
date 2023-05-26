@@ -1,7 +1,6 @@
 /* 
   Projeto Bola e Viga
  */
-
 // Biblioteca servo 
 #include <Servo_ESP32.h>
 
@@ -40,15 +39,19 @@ void setup() {
 void loop() {
 // Obtem a distancia do sensor
   dis = distance_HCSR04();
+
 // A posicao do servo motor eh atribuida em graus
+// 70 -> angulo medio do servo
   pos = PID(dis) + 70;
+
 // Limita o calor da posicao do servo para que nao exceda 
 // os limites
   limite();
+
 // Envia a posicao ao servo motor
   myservo.write(pos);
 
-// Se imprimen los valores para graficar en el serial plotter
+// Os valores a serem plotados são impressos na plotter serial
   Serial.print(setPoint);
   Serial.print(" ");
   Serial.println(dis);
@@ -72,27 +75,32 @@ void limite(void)
   if(pos > 140)
     pos = 140;
   else if(pos < 0) 
-    pos = 0;
-  
+    pos = 0; 
 }
 
 double PID(float input)
 { 
   // Tempo atual
   currentTime = millis();
+
   // Tempo decorrido
   elapsedTime = currentTime - previousTime;
+
   // Erro de posicao
   error = setPoint - input;
+
   // Calcula integral do erro
   sumError += error * elapsedTime;
+
   // Calcula a derivada do erro
   rateError = (error - lastError) / elapsedTime;
+
   // Calcula a saida do controlador
   outPut = Kp * error + Ki * sumError + Kd * rateError;
 
   // Atualiza o ultimo erro com o erro atual
   lastError = error;
+
   // Atualiza o tempo anterior com o tempo atual
   previousTime = currentTime;
 
