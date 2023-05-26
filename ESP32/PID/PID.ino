@@ -1,41 +1,58 @@
+/* 
+  Projeto Bola e Viga
+ */
+
+// Biblioteca servo 
 #include <Servo_ESP32.h>
 
-Servo_ESP32 servo;
-
+// Pinos utilizados
 #define pinServo 19
 #define pinTrig 5
 #define pinEcho 18
 
-////////////////////////Variables///////////////////////
-int Read = 0;
-float distance = 0.0;
-// float elapsedTime, time, timePrev;        //Variables for time control
-float distance_previous_error, distance_error;
-int period = 50;  //Refresh rate period of the loop is 50ms
-///////////////////////////////////////////////////////
+// Constantes PID;
+double Kp = 0, Ki = 0, Kd = 0;
 
+// Variavel de posicao atual e posicao desejada
+int pos = 0;
+int setPoint = 12;
 
-///////////////////PID constants///////////////////////
-float kp=8; //Mine was 8
-float ki=0.2; //Mine was 0.2
-float kd=3100; //Mine was 3100
-float distance_setpoint = 21;           //Should be the distance from sensor to the middle of the bar in mm
-float PID_p, PID_i, PID_d, PID_total;
-///////////////////////////////////////////////////////
+// Variaveis PID
+unsigned long currentTime, previousTime;
+double elapsedTime;
+double error, lastError, sumError, rateError;
+double outPut;
 
+// distancia
+float dis;
 
-double priError = 0;
-double toError = 0;
+// servo motor
+Servo_ESP32 myservo;
 
 void setup() {
   Serial.begin(115200);
   pinMode(pinTrig, OUTPUT);
   pinMode(pinEcho, INPUT);
-  servo.attach(pinServo);
-  servo.write(0);
+  myservo.attach(pinServo);
+  myservo.write(0);
 }
+
 void loop() {
-  PID();
+// Obtem a distancia do sensor
+  dis = distance_HCSR04();
+// A posicao do servo motor eh atribuida em graus
+  pos = PID(dis) + 70;
+// Limita o calor da posicao do servo para que nao exceda 
+// os limites
+  limite();
+// Envia a posicao ao servo motor
+  myservo.write(pos);
+
+// Se imprimen los valores para graficar en el serial plotter
+  Serial.print(setPoint);
+  Serial.print(" ");
+  Serial.println(dis);
+  delay(10);
 }
 
 float distance_HCSR04() {
@@ -49,29 +66,36 @@ float distance_HCSR04() {
   return distance_cm;
 }
 
-void PID(){
-  distance = distance_HCSR04();   
-  Serial.println(distance);
-  distance_error = distance_setpoint - distance;   
-  PID_p = kp * distance_error;
-  float dist_diference = distance_error - distance_previous_error;     
-  PID_d = kd*((distance_error - distance_previous_error)/period);
-    
-  if(-3 < distance_error && distance_error < 3)
-  {
-    PID_i = PID_i + (ki * distance_error);
-  }
-  else
-  {
-    PID_i = 0;
-  }
+void limite(void)
+{ 
+  // Verifica posicao maxima e minima do angulo
+  if(pos > 140)
+    pos = 140;
+  else if(pos < 0) 
+    pos = 0;
+  
+}
 
-  PID_total = PID_p + PID_i + PID_d;  
-  PID_total = map(PID_total, -150, 150, 0, 150);
+double PID(float input)
+{ 
+  // Tempo atual
+  currentTime = millis();
+  // Tempo decorrido
+  elapsedTime = currentTime - previousTime;
+  // Erro de posicao
+  error = setPoint - input;
+  // Calcula integral do erro
+  sumError += error * elapsedTime;
+  // Calcula a derivada do erro
+  rateError = (error - lastError) / elapsedTime;
+  // Calcula a saida do controlador
+  outPut = Kp * error + Ki * sumError + Kd * rateError;
 
-  if(PID_total < 20){PID_total = 20;}
-  if(PID_total > 160) {PID_total = 160; } 
+  // Atualiza o ultimo erro com o erro atual
+  lastError = error;
+  // Atualiza o tempo anterior com o tempo atual
+  previousTime = currentTime;
 
-  servo.write(PID_total+30);  
-  distance_previous_error = distance_error;
+  // Saida do controlador eh retornada
+  return outPut;
 }
