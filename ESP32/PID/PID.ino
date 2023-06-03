@@ -5,16 +5,16 @@
 #include <Servo_ESP32.h>
 
 // Pinos utilizados
-#define pinServo 19
+#define pinServo 33
 #define pinTrig 5
 #define pinEcho 18
 
 // Constantes PID;
-double Kp = 0, Ki = 0, Kd = 0;
+double Kp = 1, Ki = 0.001, Kd = 0.03;
 
 // Variavel de posicao atual e posicao desejada
 int pos = 0;
-int setPoint = 12;
+int setPoint = 15;
 
 // Variaveis PID
 unsigned long currentTime, previousTime;
@@ -22,8 +22,8 @@ double elapsedTime;
 double error, lastError, sumError, rateError;
 double outPut;
 
-// distancia
-float dis;
+// Variaveis de distancia
+float dis, dis_corr;
 
 // servo motor
 Servo_ESP32 myservo;
@@ -33,36 +33,45 @@ void setup() {
   pinMode(pinTrig, OUTPUT);
   pinMode(pinEcho, INPUT);
   myservo.attach(pinServo);
-  myservo.write(0);
+  myservo.write(75);
 }
 
 void loop() {
 // Obtem a distancia do sensor
-  dis = distance_HCSR04();
+  dis = distance_HCSR04(); 
+
+  /*
+    Afim de corrigir valores "errados" retornado pelo modulo HCSR04,
+    eh atribuido o valor medio 15, quando a distancia lida pelo modulo 
+    eh maior que 40. Se valor esta entre em [0, 40], entao a distancia lida
+    esta correta.
+   */
+  if(dis > 40) 
+    dis_corr = 15; 
+  else 
+    dis_corr = dis;
 
 // A posicao do servo motor eh atribuida em graus
-// 70 -> angulo medio do servo
-  pos = PID(dis) + 70;
+// 75 -> angulo em que a plataforma fica reta (sem inclinacao)
+  pos = PID(dis_corr) + 75;
 
-// Limita o calor da posicao do servo para que nao exceda 
-// os limites
+// Limita o valor da posicao do servo para que nao exceda os limites
   limite();
 
 // Envia a posicao ao servo motor
   myservo.write(pos);
-
+ 
 // Os valores a serem plotados são impressos na plotter serial
   Serial.print(setPoint);
   Serial.print(" ");
   Serial.println(dis);
-  delay(10);
 }
 
 float distance_HCSR04() {
   digitalWrite(pinTrig, LOW);
   delayMicroseconds(2);
   digitalWrite(pinTrig, HIGH);
-  delayMicroseconds(10);
+  delayMicroseconds(4);
   digitalWrite(pinTrig, LOW);
   int duration = pulseIn(pinEcho, HIGH);
   float distance_cm = duration/58;
@@ -87,7 +96,7 @@ double PID(float input)
   elapsedTime = currentTime - previousTime;
 
   // Erro de posicao
-  error = setPoint - input;
+  error = input - setPoint;
 
   // Calcula integral do erro
   sumError += error * elapsedTime;
